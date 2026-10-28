@@ -16,6 +16,12 @@ To run the RTL simulation:
 make -B
 ```
 
+On Windows (or anywhere without `make`), use the cocotb Python runner instead. It needs Icarus Verilog on your PATH:
+
+```sh
+python run_local.py
+```
+
 To run gatelevel simulation, first harden your project and copy `../runs/wokwi/results/final/verilog/gl/{your_module_name}.v` to `gate_level_netlist.v`.
 
 Then run:

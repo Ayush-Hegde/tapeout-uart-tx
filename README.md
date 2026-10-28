@@ -1,42 +1,78 @@
-![](../../workflows/gds/badge.svg) ![](../../workflows/docs/badge.svg) ![](../../workflows/test/badge.svg) ![](../../workflows/fpga/badge.svg)
+![](../../workflows/gds/badge.svg) ![](../../workflows/docs/badge.svg) ![](../../workflows/test/badge.svg)
 
-# Tiny Tapeout Verilog Project Template
+# 8-Bit UART Transmitter (8N1, 9600 baud)
 
-- [Read the documentation for project](docs/info.md)
+A small [Tiny Tapeout](https://tinytapeout.com) ASIC for the SKY130 process (TTSKY26d shuttle). It takes an 8-bit
+parallel byte and sends it out as a standard UART serial frame, so any USB-to-UART adapter or Arduino can receive it.
 
-## What is Tiny Tapeout?
+- **Frame:** 8N1 (1 start bit, 8 data bits LSB first, no parity, 1 stop bit)
+- **Clock:** 10 MHz
+- **Baud rate:** 9600 (10 MHz / 1042, 0.03% error)
+- **Size:** 1x1 tile
+- **Layout viewer:** https://ayush-hegde.github.io/tapeout-uart-tx/
+- **Datasheet:** [docs/info.md](docs/info.md)
 
-Tiny Tapeout is an educational project that aims to make it easier and cheaper than ever to get your digital and analog designs manufactured on a real chip.
+## How it works
 
-To learn more and get started, visit https://tinytapeout.com.
+| Block | Description |
+|---|---|
+| Baud counter | 11-bit counter producing a tick every 1042 clocks (one bit period) |
+| Control FSM | 4 states: IDLE, START, DATA, STOP |
+| Shift register | 8-bit register loaded from `ui_in`, shifted out one bit per baud tick |
+| Bit counter | 3-bit counter for the 8 data bits |
+| SEND synchronizer | 2-flop synchronizer plus rising-edge detect on the asynchronous SEND pin |
 
-## Set up your Verilog project
+A rising edge on SEND loads the byte and starts a frame. A SEND that arrives during a frame is ignored. Each frame
+takes 10 bit periods, about 1.04 ms. The source is in [src/project.v](src/project.v).
 
-1. Add your Verilog files to the `src` folder.
-2. Edit the [info.yaml](info.yaml) and update information about your project, paying special attention to the `source_files` and `top_module` properties. If you are upgrading an existing Tiny Tapeout project, check out our [online info.yaml migration tool](https://tinytapeout.github.io/tt-yaml-upgrade-tool/).
-3. Edit [docs/info.md](docs/info.md) and add a description of your project.
-4. Adapt the testbench to your design. See [test/README.md](test/README.md) for more information.
+## Pinout
 
-The GitHub action will automatically build the ASIC files using [LibreLane](https://www.zerotoasiccourse.com/terminology/librelane/).
+| Pin | Direction | Function |
+|---|---|---|
+| `ui[7:0]` | in | DATA, the byte to send |
+| `uio[0]` | in | SEND, a rising edge starts a frame |
+| `uo[0]` | out | TX serial line (idles high) |
+| `uo[1]` | out | BUSY, high while a frame is being sent |
+| `uo[2]` | out | READY, the inverse of BUSY |
 
-## Enable GitHub actions to build the results page
+All other pins are unused.
 
-- [Enabling GitHub Pages](https://tinytapeout.com/faq/#my-github-action-is-failing-on-the-pages-part)
+## Testing
 
-## Resources
+### Simulation
 
-- [FAQ](https://tinytapeout.com/faq/)
-- [Digital design lessons](https://tinytapeout.com/digital_design/)
-- [Learn how semiconductors work](https://tinytapeout.com/siliwiz/)
-- [Join the community](https://tinytapeout.com/discord)
-- [Build your design locally](https://www.tinytapeout.com/guides/local-hardening/)
+The cocotb testbench in [test/](test) contains a software UART receiver. It checks the idle level, several bytes
+(0x55, 0xA5, 0x00, 0xFF, 0x3C, "Hi"), the frame length, and that SEND is ignored while busy.
 
-## What next?
+```sh
+cd test
+make -B              # Linux / macOS
+python run_local.py  # Windows, no make needed
+```
 
-- [Submit your design to the next shuttle](https://app.tinytapeout.com/).
-- Edit [this README](README.md) and explain your design, how it works, and how to test it.
-- Share your project on your social network of choice:
-  - LinkedIn [#tinytapeout](https://www.linkedin.com/search/results/content/?keywords=%23tinytapeout) [@TinyTapeout](https://www.linkedin.com/company/100708654/)
-  - Mastodon [#tinytapeout](https://chaos.social/tags/tinytapeout) [@matthewvenn](https://chaos.social/@matthewvenn)
-  - X (formerly Twitter) [#tinytapeout](https://twitter.com/hashtag/tinytapeout) [@tinytapeout](https://twitter.com/tinytapeout)
-  - Bluesky [@tinytapeout.com](https://bsky.app/profile/tinytapeout.com)
+The GitHub Actions workflows run the same tests on the RTL and on the gate-level netlist after hardening.
+
+### On the chip
+
+1. On the Tiny Tapeout demo board, select this project and set the clock to 10 MHz.
+2. Connect `uo[0]` (TX) and GND to the RX pin of a 3.3 V USB-UART adapter.
+3. Open a serial terminal at 9600 baud, 8N1.
+4. Set `ui[7:0]` to a character (for example `0x41` for `A`), then pulse `uio[0]` high and low.
+5. The character appears in the terminal.
+
+## Open-source flow
+
+| Step | Tool |
+|---|---|
+| Simulation | Icarus Verilog + cocotb |
+| Synthesis | Yosys + ABC |
+| Floorplan, place, CTS, route | OpenROAD (via LibreLane) |
+| Static timing | OpenSTA |
+| DRC / LVS | Magic / Netgen |
+| PDK | SkyWater SKY130 |
+
+## Author
+
+Ayush Hegde, [@Ayush-Hegde](https://github.com/Ayush-Hegde)
+
+Licensed under [Apache 2.0](LICENSE).
