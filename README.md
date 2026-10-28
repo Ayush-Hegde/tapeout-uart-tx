@@ -55,10 +55,21 @@ The GitHub Actions workflows run the same tests on the RTL and on the gate-level
 ### On the chip
 
 1. On the Tiny Tapeout demo board, select this project and set the clock to 10 MHz.
-2. Connect `uo[0]` (TX) and GND to the RX pin of a 3.3 V USB-UART adapter.
+2. Connect `uo[0]` (TX) and GND to the RX pin of a 3.3 V USB-UART adapter, or to the RX pin of an Arduino.
 3. Open a serial terminal at 9600 baud, 8N1.
 4. Set `ui[7:0]` to a character (for example `0x41` for `A`), then pulse `uio[0]` high and low.
 5. The character appears in the terminal.
+
+Things to watch on real hardware:
+
+- **Clock accuracy.** The baud rate is the clock divided by 1042, and UART tolerates only about 2% error. If the
+  board reports a clock that is not exactly 10.00 MHz (a 125 MHz RP2040 clock can only make 9.62 or 10.42 MHz), set
+  the RP2040 system clock to a multiple of 10 MHz first, for example `machine.freq(120_000_000)`.
+- **Data hold.** The byte is captured 2 to 3 clocks after SEND rises. Set `ui[7:0]` before SEND and keep it unchanged
+  until BUSY (`uo[1]`) goes high.
+- **Voltage.** The chip only drives TX, so a 5 V Arduino can read it directly. Never drive the chip's pins from 5 V.
+
+See the [datasheet](docs/info.md) for details.
 
 ## Open-source flow
 

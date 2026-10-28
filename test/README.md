@@ -1,53 +1,68 @@
-# Sample testbench for a Tiny Tapeout project
+# Testbench for the 8-bit UART transmitter
 
-This is a sample testbench for a Tiny Tapeout project. It uses [cocotb](https://docs.cocotb.org/en/stable/) to drive the DUT and check the outputs.
-See below to get started or for more information, check the [website](https://tinytapeout.com/hdl/testing/).
+This testbench uses [cocotb](https://docs.cocotb.org/en/stable/) to drive `tt_um_ayush_hegde_uart_tx` through
+[tb.v](tb.v). [test.py](test.py) contains a software UART receiver that decodes the TX pin (`uo_out[0]`) and checks:
+
+| Test | What it checks |
+|---|---|
+| `test_idle_state` | TX idles high, BUSY low, READY high, and changing the data without SEND does nothing |
+| `test_send_bytes` | 0x55, 0xA5, 0x00, 0xFF, 0x3C, `H` and `i` are received correctly |
+| `test_frame_timing` | One 8N1 frame lasts 10 bit periods (10 x 1042 clocks) |
+| `test_send_ignored_while_busy` | A SEND during a frame does not corrupt the frame |
+
+The clock is 10 MHz (100 ns period), so one byte takes about 1.04 ms of simulated time.
 
 ## Setting up
 
-1. Edit [Makefile](Makefile) and modify `PROJECT_SOURCES` to point to your Verilog files.
-2. Edit [tb.v](tb.v) and replace `tt_um_example` with your module name.
+```sh
+pip install -r requirements.txt
+```
+
+You also need [Icarus Verilog](https://steveicarus.github.io/iverilog/) on your PATH.
 
 ## How to run
 
-To run the RTL simulation:
+To run the RTL simulation on Linux or macOS:
 
 ```sh
 make -B
 ```
 
-On Windows (or anywhere without `make`), use the cocotb Python runner instead. It needs Icarus Verilog on your PATH:
+On Windows, or anywhere without `make`, use the cocotb Python runner instead:
 
 ```sh
 python run_local.py
 ```
 
-To run gatelevel simulation, first harden your project and copy `../runs/wokwi/results/final/verilog/gl/{your_module_name}.v` to `gate_level_netlist.v`.
+Both print `TESTS=4 PASS=4 FAIL=0` when everything passes.
 
-Then run:
+## Gate-level simulation
+
+The `gl_test` job in the gds GitHub workflow runs these same tests on the hardened netlist after every push.
+
+To run it locally, you need the SKY130 PDK (set `PDK_ROOT`). Copy the gate-level netlist produced by hardening to
+`gate_level_netlist.v` in this folder, then run:
 
 ```sh
 make -B GATES=yes
 ```
 
-If you wish to save the waveform in VCD format instead of FST format, edit tb.v to use `$dumpfile("tb.vcd");` and then run:
-
-```sh
-make -B FST=
-```
-
-This will generate `tb.vcd` instead of `tb.fst`.
-
 ## How to view the waveform file
 
-Using GTKWave
+Each run writes `tb.fst` in this folder. Add `clk`, `ui_in`, `uio_in` and `uo_out` to see the frames on `uo_out[0]`.
+
+Using GTKWave:
 
 ```sh
 gtkwave tb.fst tb.gtkw
 ```
 
-Using Surfer
+Using Surfer:
 
 ```sh
 surfer tb.fst
 ```
+
+You can also drag `tb.fst` onto [app.surfer-project.org](https://app.surfer-project.org) in a browser.
+
+To save VCD instead of FST, edit tb.v to use `$dumpfile("tb.vcd");` and run `make -B FST=`.
